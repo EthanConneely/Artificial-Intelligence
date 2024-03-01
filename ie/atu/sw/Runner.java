@@ -1,10 +1,14 @@
 package ie.atu.sw;
 
 import javax.swing.SwingUtilities;
+
 import static java.lang.System.*;
 
 public class Runner {
 	public static void main(String[] args) throws Exception {
+
+		AutoPilot.Train();
+
 		/*
 		 * Always run a GUI in a separate thread from the main thread.
 		 */
@@ -16,4 +20,5 @@ public class Runner {
 			}
 		});
 	}
+
 }

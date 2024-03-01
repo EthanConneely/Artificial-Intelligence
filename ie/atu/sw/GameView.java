@@ -11,6 +11,10 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.LinkedList;
 
@@ -19,18 +23,18 @@ import javax.swing.Timer;
 
 public class GameView extends JPanel implements ActionListener {
 	// Some constants
-	private static final long serialVersionUID = 1L;
-	private static final int MODEL_WIDTH = 30;
-	private static final int MODEL_HEIGHT = 20;
-	private static final int SCALING_FACTOR = 30;
+	public static final long serialVersionUID = 1L;
+	public static final int MODEL_WIDTH = 30;
+	public static final int MODEL_HEIGHT = 20;
+	public static final int SCALING_FACTOR = 30;
 
-	private static final int MIN_TOP = 2;
-	private static final int MIN_BOTTOM = 18;
-	private static final int PLAYER_COLUMN = 15;
-	private static final int TIMER_INTERVAL = 100;
+	public static final int MIN_TOP = 2;
+	public static final int MIN_BOTTOM = 18;
+	public static final int PLAYER_COLUMN = 15;
+	public static final int TIMER_INTERVAL = AutoPilot.MANUAL ? 100 : 1;
 
-	private static final byte ONE_SET = 1;
-	private static final byte ZERO_SET = 0;
+	public static final byte ONE_SET = 1;
+	public static final byte ZERO_SET = 0;
 
 	/*
 	 * The 30x20 game grid is implemented using a linked list of
@@ -44,7 +48,7 @@ public class GameView extends JPanel implements ActionListener {
 
 	// Once the timer stops, the game is over
 	private Timer timer;
-	private long time;
+	private long distance;
 
 	private int playerRow = 11;
 	private int index = MODEL_WIDTH - 1; // Start generating at the end
@@ -133,7 +137,7 @@ public class GameView extends JPanel implements ActionListener {
 		g2.setColor(Color.RED);
 		g2.fillRect(1 * SCALING_FACTOR, 15 * SCALING_FACTOR, 400, 3 * SCALING_FACTOR);
 		g2.setColor(Color.WHITE);
-		g2.drawString("Time: " + (int) (time * (TIMER_INTERVAL / 1000.0d)) + "s", 1 * SCALING_FACTOR + 10,
+		g2.drawString("Distance: " + (int) (distance), 1 * SCALING_FACTOR + 10,
 				(15 * SCALING_FACTOR) + (2 * SCALING_FACTOR));
 
 		if (!timer.isRunning()) {
@@ -163,39 +167,34 @@ public class GameView extends JPanel implements ActionListener {
 	 *
 	 */
 	private void autoMove() {
-		move(current().nextInt(-1, 2)); // Move -1 (up), 0 (nowhere), 1 (down)
+		double[] input = new double[AutoPilot.INPUTS];
+		int dir = 0;
+		try {
+			AutoPilot.PreProcessModel(input, playerRow, model);
+			dir = (int) Math.round(AutoPilot.Process(input, playerRow));
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		move(dir); // Move -1 (up), 0 (nowhere), 1 (down)
 	}
 
 	// Called every second by the timer
 	public void actionPerformed(ActionEvent e) {
-		time++; // Update our timer
 		this.repaint(); // Repaint the cavern
 
 		// Update the next index to generate
 		index++;
 		index = (index == MODEL_WIDTH) ? 0 : index;
 
-		generateNext(); // Generate the next part of the cave
-		if (auto)
-			autoMove();
-
-		/*
-		 * Use something like the following to extract training data.
-		 * It might be a good idea to submit the double[] returned by
-		 * the sample() method to an executor and then write it out
-		 * to file. You'll need to label the data too and perhaps add
-		 * some more features... Finally, you do not have to sample
-		 * the data every TIMER_INTERVAL units of time. Use some modular
-		 * arithmetic as shown below. Alternatively, add a key stroke
-		 * to fire an event that starts the sampling.
-		 */
-		if (time % 10 == 0) {
-			/*
-			 * double[] trainingRow = sample();
-			 * System.out.println(Arrays.toString(trainingRow));
-			 */
+		for (int x = 0; x < (AutoPilot.MANUAL ? 1 : 10); x++) {
+			generateNext(); // Generate the next part of the cave
+			if (auto)
+				autoMove();
 		}
 	}
+
+	double prev;
 
 	/*
 	 * Generate the next layer of the cavern. Use the linked list to
@@ -203,6 +202,7 @@ public class GameView extends JPanel implements ActionListener {
 	 * decide whether to increase or decrease the cavern.
 	 */
 	private void generateNext() {
+		distance++;
 		var next = model.pollFirst();
 		model.addLast(next); // Move the head to the tail
 		Arrays.fill(next, ONE_SET); // Fill everything in
@@ -216,6 +216,30 @@ public class GameView extends JPanel implements ActionListener {
 
 		// Fill in the array with the carved area
 		Arrays.fill(next, prevTop, prevBot, ZERO_SET);
+
+		double[] trainingRow = sample();
+
+		double val = trainingRow[trainingRow.length - 1];
+
+		StringBuilder builder = new StringBuilder();
+
+		for (double d : trainingRow) {
+			builder.append(d);
+			builder.append(",");
+		}
+
+		builder.deleteCharAt(builder.length() - 1); // Remove the last comma
+		builder.append("\n");
+
+		if (AutoPilot.MANUAL) {
+			try {
+				Files.write(Paths.get("./resources/training.csv"), builder.toString().getBytes(),
+						StandardOpenOption.APPEND);
+			} catch (IOException ex) {
+			}
+		}
+
+		prev = val;
 	}
 
 	/*
@@ -237,15 +261,15 @@ public class GameView extends JPanel implements ActionListener {
 	 *
 	 */
 	public double[] sample() {
-		var vector = new double[MODEL_WIDTH * MODEL_HEIGHT];
-		var index = 0;
-
-		for (byte[] bm : model) {
-			for (byte b : bm) {
-				vector[index] = b;
-				index++;
-			}
+		var vector = new double[AutoPilot.INPUTS];
+		try {
+			AutoPilot.PreProcessModel(vector, playerRow, model);
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
+
+		// vector[vector.length - 1] = playerInput; // encode the player position
+
 		return vector;
 	}
 
@@ -256,7 +280,9 @@ public class GameView extends JPanel implements ActionListener {
 		model.stream() // Zero out the grid
 				.forEach(n -> Arrays.fill(n, 0, n.length, ZERO_SET));
 		playerRow = 11; // Centre the plane
-		time = 0; // Reset the clock
 		timer.restart(); // Start the animation
+		prevTop = MIN_TOP;
+		prevBot = MIN_BOTTOM;
+		distance = 0;
 	}
 }
