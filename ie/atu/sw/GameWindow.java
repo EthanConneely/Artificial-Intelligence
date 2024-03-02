@@ -60,6 +60,16 @@ public class GameWindow implements KeyListener {
 			return;
 		}
 
+		int delay = switch (e.getKeyCode()) {
+			case KeyEvent.VK_1 -> 250;
+			case KeyEvent.VK_2 -> 100;
+			case KeyEvent.VK_3 -> 50;
+			case KeyEvent.VK_4 -> 1;
+			default -> view.getTimerDelay();
+		};
+
+		view.setTimerDelay(delay);
+
 		int step = switch (e.getKeyCode()) {
 			case KeyEvent.VK_UP -> -1; // Press "UP Arrow"
 			case KeyEvent.VK_DOWN -> 1; // Press "DOWN Arrow"

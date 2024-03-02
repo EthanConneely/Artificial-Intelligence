@@ -1,6 +1,7 @@
 {
     "java.project.referencedLibraries": [
         "lib/**/*.jar",
-        "aicme4j.jar"
+        "aicme4j.jar",
+        "encog-core-3.4.jar"
     ]
 }

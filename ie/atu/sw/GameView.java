@@ -31,10 +31,11 @@ public class GameView extends JPanel implements ActionListener {
 	public static final int MIN_TOP = 2;
 	public static final int MIN_BOTTOM = 18;
 	public static final int PLAYER_COLUMN = 15;
-	public static final int TIMER_INTERVAL = AutoPilot.MANUAL ? 100 : 1;
 
 	public static final byte ONE_SET = 1;
 	public static final byte ZERO_SET = 0;
+
+	public static final int TIMER_INTERVAL = 100;
 
 	/*
 	 * The 30x20 game grid is implemented using a linked list of
@@ -61,6 +62,8 @@ public class GameView extends JPanel implements ActionListener {
 	// The player and a sprite for an exploding plane
 	private Sprite sprite;
 	private Sprite dyingSprite;
+
+	int playerInput;
 
 	private boolean auto;
 
@@ -90,6 +93,14 @@ public class GameView extends JPanel implements ActionListener {
 
 	public void setSprite(Sprite s) {
 		this.sprite = s;
+	}
+
+	public void setTimerDelay(int delay) {
+		timer.setDelay(delay);
+	}
+
+	public int getTimerDelay() {
+		return timer.getDelay();
 	}
 
 	public void setDyingSprite(Sprite s) {
@@ -149,7 +160,8 @@ public class GameView extends JPanel implements ActionListener {
 
 	// Move the plane up or down
 	public void move(int step) {
-		playerRow += step;
+		playerInput = step;
+		playerRow += Math.clamp(step, -1, 1);
 	}
 
 	/*
@@ -167,11 +179,10 @@ public class GameView extends JPanel implements ActionListener {
 	 *
 	 */
 	private void autoMove() {
-		double[] input = new double[AutoPilot.INPUTS];
 		int dir = 0;
 		try {
-			AutoPilot.PreProcessModel(input, playerRow, model);
-			dir = (int) Math.round(AutoPilot.Process(input, playerRow));
+			double[] input = AutoPilot.PreProcessInputs(playerRow, model);
+			dir = (int) Math.round(AutoPilot.Process(input));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -187,7 +198,7 @@ public class GameView extends JPanel implements ActionListener {
 		index++;
 		index = (index == MODEL_WIDTH) ? 0 : index;
 
-		for (int x = 0; x < (AutoPilot.MANUAL ? 1 : 10); x++) {
+		for (int i = 0; i < (timer.getDelay() == 1 ? 100 : (timer.getDelay() == 50 ? 10 : 1)); i++) {
 			generateNext(); // Generate the next part of the cave
 			if (auto)
 				autoMove();
@@ -232,14 +243,18 @@ public class GameView extends JPanel implements ActionListener {
 		builder.append("\n");
 
 		if (AutoPilot.MANUAL) {
-			try {
-				Files.write(Paths.get("./resources/training.csv"), builder.toString().getBytes(),
-						StandardOpenOption.APPEND);
-			} catch (IOException ex) {
+			if (playerInput != 0) {
+
+				try {
+					Files.write(Paths.get("./resources/training.csv"), builder.toString().getBytes(),
+							StandardOpenOption.APPEND);
+				} catch (IOException ex) {
+				}
 			}
 		}
 
 		prev = val;
+		playerInput = 0;
 	}
 
 	/*
@@ -261,16 +276,16 @@ public class GameView extends JPanel implements ActionListener {
 	 *
 	 */
 	public double[] sample() {
-		var vector = new double[AutoPilot.INPUTS];
-		try {
-			AutoPilot.PreProcessModel(vector, playerRow, model);
-		} catch (Exception e) {
-			e.printStackTrace();
+		var inputs = AutoPilot.PreProcessInputs(playerRow, model);
+		var outputs = new double[inputs.length + AutoPilot.OUTPUTS];
+
+		for (int i = 0; i < inputs.length; i++) {
+			inputs[i] = outputs[i];
 		}
 
-		// vector[vector.length - 1] = playerInput; // encode the player position
+		outputs[outputs.length - 1] = playerInput; // expected value from neural net
 
-		return vector;
+		return outputs;
 	}
 
 	/*
