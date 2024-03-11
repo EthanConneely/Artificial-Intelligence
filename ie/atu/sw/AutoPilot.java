@@ -15,11 +15,12 @@ import org.encog.neural.networks.training.propagation.resilient.ResilientPropaga
 import org.encog.persist.EncogDirectoryPersistence;
 
 public class AutoPilot {
+    private static final int MaxEpochs = 1000;
     public static final int INPUTS = 2;
     public static final int OUTPUTS = 1;
     public static final boolean MANUAL = false;
 
-    private static BasicNetwork network = new BasicNetwork();
+    public static BasicNetwork network = new BasicNetwork();
 
     public static void Train() {
         if (MANUAL) {
@@ -28,7 +29,7 @@ public class AutoPilot {
 
         // Create the neural network
         network.addLayer(new BasicLayer(null, true, INPUTS));
-        network.addLayer(new BasicLayer(new ActivationTANH(), true, 10));
+        network.addLayer(new BasicLayer(new ActivationTANH(), true, 4));
         network.addLayer(new BasicLayer(new ActivationTANH(), false, OUTPUTS));
         network.getStructure().finalizeStructure();
         network.reset();
@@ -51,12 +52,12 @@ public class AutoPilot {
             train.iteration();
             System.out.println("Epoch: " + epoch + " Error: " + train.getError());
             epoch++;
-        } while (train.getError() > minError);
+        } while (train.getError() > minError && epoch < MaxEpochs);
         train.finishTraining();
 
         long duration = (System.nanoTime() - startTime);
 
-        System.out.println("Training took " + (duration / 1_00_000_000.0) + " milliseconds");
+        System.out.println("Training took " + (duration / 1_000_000_000.0) + " milliseconds");
 
         EncogDirectoryPersistence.saveObject(new File("./resources/autopilot.model"), network);
     }
@@ -87,12 +88,16 @@ public class AutoPilot {
             prev = b;
         }
 
-        output[index++] = playerRow - top;
-        output[index++] = bot - playerRow;
+        output[index++] = normalize(playerRow - top);
+        output[index++] = normalize(bot - playerRow);
 
         // System.out.println(output[0] + " " + output[1]);
 
         return output;
+    }
+
+    static double normalize(double value) {
+        return (value / 14);
     }
 
     static MLDataSet loadData() throws Exception {
@@ -108,7 +113,7 @@ public class AutoPilot {
             var inputs = Arrays.stream(values).mapToDouble(Double::parseDouble).toArray();
 
             for (int i = 0; i < inputs.length - 1; i++) {
-                data[index][i] = inputs[i];
+                data[index][i] = normalize(inputs[i]);
             }
 
             expected[index][0] = inputs[inputs.length - 1];

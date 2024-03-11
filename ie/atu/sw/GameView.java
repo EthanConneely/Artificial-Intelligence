@@ -9,6 +9,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
@@ -112,6 +113,8 @@ public class GameView extends JPanel implements ActionListener {
 		super.paintComponent(g);
 		var g2 = (Graphics2D) g;
 
+		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
 		g2.setColor(Color.WHITE);
 		g2.fillRect(0, 0, dim.width, dim.height);
 
@@ -140,13 +143,9 @@ public class GameView extends JPanel implements ActionListener {
 			}
 		}
 
-		/*
-		 * Not pretty, but good enough for this project... The compiler will
-		 * tidy up and optimise all of the arithmetics with constants below.
-		 */
 		g2.setFont(font);
 		g2.setColor(Color.RED);
-		g2.fillRect(1 * SCALING_FACTOR, 15 * SCALING_FACTOR, 400, 3 * SCALING_FACTOR);
+		g2.fillRect(1 * SCALING_FACTOR, 15 * SCALING_FACTOR, 425, 3 * SCALING_FACTOR);
 		g2.setColor(Color.WHITE);
 		g2.drawString("Distance: " + (int) (distance), 1 * SCALING_FACTOR + 10,
 				(15 * SCALING_FACTOR) + (2 * SCALING_FACTOR));
@@ -165,24 +164,14 @@ public class GameView extends JPanel implements ActionListener {
 	}
 
 	/*
-	 * ----------
-	 * AUTOPILOT!
-	 * ----------
-	 * The following implementation randomly picks a -1, 0, 1 to control the plane.
-	 * You
-	 * should plug the trained neural network in here. This method is called by the
-	 * timer
-	 * every TIMER_INTERVAL units of time from actionPerformed(). There are other
-	 * ways of
-	 * wiring your neural network into the application, but this way might be the
-	 * easiest.
-	 *
+	 * Run the neural network to determine the next move.
 	 */
 	private void autoMove() {
 		int dir = 0;
 		try {
 			double[] input = AutoPilot.PreProcessInputs(playerRow, model);
 			dir = (int) Math.round(AutoPilot.Process(input));
+			System.out.println((input[0] * 14) + " " + (input[1] * 14) + " = " + dir);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
